@@ -109,7 +109,7 @@ const requiredFields = {
   clincont: ['scIndicator', 'clincontSolutionDetail', 'clincontSolution', 'clincontJiraGroup', 'clincontSummary', 'clincontDescription'],
   clncont: ['clncontSprint', 'clncontComponent1', 'clncontDesignerName', 'clncontSummary', 'clncontDescription', 'clncontContent', 'clncontConceptCKI'],
   jforms: ['jformsSummary', 'jformsDescription', 'jformsSolution'],
-  ohaiuad: ['ohaiuadIssueType', 'ohaiuadComponent1', 'ohaiuadDueDate', 'ohaiuadChangeNum', 'ohaiuadSummary', 'ohaiuadDescription'],
+  ohaiuad: ['ohaiuadComponent1', 'ohaiuadDueDate', 'ohaiuadChangeNum', 'ohaiuadSummary', 'ohaiuadDescription'],
   package: ['packageSummary', 'packageName', 'packageOwner', 'packageOwnerID', 'packageSolution', 'packageDestination', 'packageReleaseMonth', 'packageReleaseDate', 'packageReviewDate', 'packageCR', 'packageFeature', 'packageNeedsChanges', 'packageDescription'],
 };
 
@@ -128,18 +128,25 @@ const FormComponent = () => {
 
   const handleRadioChange = (value, type) => {
     setTabStatus({ ...tabStatus, [type]: value });
-    if (value === 'N/A') {
-      const newErrors = { ...errors };
+    const newErrors = { ...errors };
+    if (value === 'Link') {
+      if (!newErrors[type]) newErrors[type] = [];
+      if (!newErrors[type].includes(`${type}JiraLinkID`)) newErrors[type].push(`${type}JiraLinkID`);
+    } else if (value === 'N/A') {
       delete newErrors[type];
-      setErrors(newErrors);
+    } else {
+      if (newErrors[type]) {
+        newErrors[type] = newErrors[type].filter(errField => errField !== `${type}JiraLinkID`);
+        if (newErrors[type].length === 0) delete newErrors[type];
+      }
     }
+    setErrors(newErrors);
   };
 
   const handleInputChange = (e, type, field) => {
     const value = e.target.value;
     setFormData({ ...formData, [type]: { ...formData[type], [field]: value } });
     if (type === 'general' && field === 'reporterID') {
-      // Fill in other fields with reporterID
       setFormData(prevFormData => ({
         ...prevFormData,
         clncont: {
@@ -195,13 +202,17 @@ const FormComponent = () => {
     const newErrors = {};
 
     Object.keys(tabStatus).forEach(type => {
-      if (tabStatus[type] === 'New') {
+      if (tabStatus[type] === 'New' || tabStatus[type] === 'Link') {
         requiredFields[type]?.forEach(field => {
           if (formData[type][field].trim() === '') {
             if (!newErrors[type]) newErrors[type] = [];
             newErrors[type].push(field);
           }
         });
+        if (tabStatus[type] === 'Link' && formData[type][`${type}JiraLinkID`].trim() === '') {
+          if (!newErrors[type]) newErrors[type] = [];
+          newErrors[type].push(`${type}JiraLinkID`);
+        }
       }
     });
 
@@ -286,6 +297,22 @@ const FormComponent = () => {
     </Form.Group>
   );
 
+  const renderDateField = (type, field, label, required = false) => (
+    <Form.Group as={Row} controlId={`${type}_${field}`} className="form-group mb-3">
+      <Form.Label column sm="3">{label} {required && '*'}</Form.Label>
+      <Col sm="9">
+        <Form.Control
+          type="date"
+          name={field}
+          value={formData[type][field]}
+          onChange={(e) => handleInputChange(e, type, field)}
+          className={`form-control ${errors[type]?.includes(field) ? 'is-invalid' : ''}`}
+        />
+        {errors[type]?.includes(field) && <div className="invalid-feedback">This field is required</div>}
+      </Col>
+    </Form.Group>
+  );
+
   const renderRadioButtonGroup = (type, field, label) => (
     <Form.Group as={Row} controlId={`${type}_${field}`} className="form-group mb-3">
       <Form.Label column sm="3">{label}</Form.Label>
@@ -352,7 +379,6 @@ const FormComponent = () => {
             {renderTextareaField('clncont', 'clncontDescription', 'Description', true)}
             {renderInputField('clncont', 'clncontSolution', 'Solution')}
             {renderInputField('clncont', 'clncontAssignee', 'Assignee')}
-            {renderInputField('clncont', 'clncontJiraLinkID', 'Jira Link ID')}
             {renderSelectField('clncont', 'clncontSprint', 'Sprint', ['CurSprint', 'NextSprint'], true)}
             {renderSelectField('clncont', 'clncontComponent1', 'Component 1', ['MODELRETRIEVe', 'OtherComponent1'], true)}
             {renderInputField('clncont', 'clncontComponent2', 'Component 2')}
@@ -373,7 +399,6 @@ const FormComponent = () => {
             {renderSelectField('jforms', 'jformsSolutionDetail', 'Solution Detail', ['Detail 1', 'Detail 2'], true)}
             {renderSelectField('jforms', 'jformsJiraGroup', 'Jira Group', ['Group 1', 'Group 2'], true)}
             {renderInputField('jforms', 'jformsAssignee', 'Assignee')}
-            {renderInputField('jforms', 'jformsJiraLinkID', 'Jira Link ID')}
             {renderInputField('jforms', 'jformsProjectIdentifiers', 'Project Identifiers')}
             {renderTextareaField('jforms', 'diApprove', 'DI Approve')}
             {renderTextareaField('jforms', 'doApprove', 'DO Approve')}
@@ -394,11 +419,10 @@ const FormComponent = () => {
             {renderInputField('ohaiuad', 'ohaiuadSolutionDetail', 'Solution Detail')}
             {renderInputField('ohaiuad', 'ohaiuadJiraGroup', 'Jira Group')}
             {renderInputField('ohaiuad', 'ohaiuadAssignee', 'Assignee')}
-            {renderInputField('ohaiuad', 'ohaiuadJiraLinkID', 'Jira Link ID')}
             {renderSelectField('ohaiuad', 'ohaiuadComponent1', 'Component 1', ['Reference Pages', 'OtherComponent1'], true)}
             {renderInputField('ohaiuad', 'ohaiuadComponent2', 'Component 2')}
             {renderInputField('ohaiuad', 'ohaiuadComponent3', 'Component 3')}
-            {renderInputField('ohaiuad', 'ohaiuadDueDate', 'Due Date', true)}
+            {renderDateField('ohaiuad', 'ohaiuadDueDate', 'Due Date', true)}
             {renderInputField('ohaiuad', 'ohaiuadChangeNum', 'Change Number', true)}
             {renderInputField('ohaiuad', 'fileToAdd', 'File to Add')}
             {renderInputField('ohaiuad', 'fileToAdd2', 'File to Add 2')}
@@ -414,7 +438,6 @@ const FormComponent = () => {
             {renderInputField('package', 'packageSolutionDetail', 'Solution Detail')}
             {renderInputField('package', 'packageJiraGroup', 'Jira Group')}
             {renderInputField('package', 'packageAssignee', 'Assignee')}
-            {renderInputField('package', 'packageJiraLinkID', 'Jira Link ID')}
             {renderInputField('package', 'packageOldPack', 'Old Pack')}
             {renderSelectField('package', 'packageIssueType', 'Issue Type', ['Content Package Request', 'OtherIssueType'])}
             {renderInputField('package', 'packageName', 'Package Name', true)}
@@ -422,8 +445,8 @@ const FormComponent = () => {
             {renderInputField('package', 'packageOwnerID', 'Package Owner ID', true)}
             {renderInputField('package', 'packageDestination', 'Destination', true)}
             {renderSelectField('package', 'packageReleaseMonth', 'Release Month', ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], true)}
-            {renderInputField('package', 'packageReleaseDate', 'Release Date', true, <Form.Control type="date" />)}
-            {renderInputField('package', 'packageReviewDate', 'Review Date', true, <Form.Control type="date" />)}
+            {renderDateField('package', 'packageReleaseDate', 'Release Date', true)}
+            {renderDateField('package', 'packageReviewDate', 'Review Date', true)}
             {renderInputField('package', 'packageCR', 'CR', true)}
             {renderInputField('package', 'packageFeature', 'Feature', true)}
             {renderTextareaField('package', 'packageStakeholders', 'Stakeholders')}
