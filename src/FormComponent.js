@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Form, Tabs, Tab, Button, Row, Col, Container } from 'react-bootstrap';
+import Select from 'react-select';
 import RadioToggleButtonGroup from './RadioToggleButtonGroup';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './FormComponent.css';
@@ -23,7 +24,7 @@ export const initialFormData = {
     clincontJiraGroup: '',
     scIndicator: 'yes',
     clientViewableDescription: '',
-    projectIdentifiers: '',
+    projectIdentifiers: [],
     clincontAssignee: '',
     clincontJiraLinkID: '',
     clientViewable: 'no',
@@ -52,14 +53,13 @@ export const initialFormData = {
     jformsSolutionDetail: '',
     jformsJiraGroup: '',
     jformsAssignee: '',
-    jformsJiraLinkID: '',
-    jformsProjectIdentifiers: '',
-    diApprove: '',
-    doApprove: '',
+    jformsProjectIdentifiers: [],
+    diApprovers: [],
+    doApprovers: [],
     addChanges: 'yes',
     includeHaz: 'yes',
     specifications: 'See feature for documentation',
-    projTraceability: '',
+    projTraceability: [],
     techDesignDoc: 'See feature for documentation',
     sourceCode: 'N/A',
   },
@@ -99,7 +99,7 @@ export const initialFormData = {
     packageReviewDate: '',
     packageCR: '',
     packageFeature: '',
-    packageStakeholders: '',
+    packageStakeholders: [],
     packageNeedsChanges: 'no',
   },
 };
@@ -112,6 +112,20 @@ const requiredFields = {
   ohaiuad: ['ohaiuadComponent1', 'ohaiuadDueDate', 'ohaiuadChangeNum', 'ohaiuadSummary', 'ohaiuadDescription'],
   package: ['packageSummary', 'packageName', 'packageOwner', 'packageOwnerID', 'packageSolution', 'packageDestination', 'packageReleaseMonth', 'packageReleaseDate', 'packageReviewDate', 'packageCR', 'packageFeature', 'packageNeedsChanges', 'packageDescription'],
 };
+
+const assignees = [
+  { value: '1', label: 'John Doe' },
+  { value: '2', label: 'Jane Smith' },
+  { value: '3', label: 'Alice Johnson' },
+  // Add more assignees as needed
+];
+
+const jiraItems = [
+  { value: 'JIRA-101', label: 'JIRA-101' },
+  { value: 'JIRA-102', label: 'JIRA-102' },
+  { value: 'JIRA-103', label: 'JIRA-103' },
+  // Add more JIRA items as needed
+];
 
 const FormComponent = () => {
   const [formData, setFormData] = useState(initialFormData);
@@ -128,25 +142,19 @@ const FormComponent = () => {
 
   const handleRadioChange = (value, type) => {
     setTabStatus({ ...tabStatus, [type]: value });
-    const newErrors = { ...errors };
-    if (value === 'Link') {
-      if (!newErrors[type]) newErrors[type] = [];
-      if (!newErrors[type].includes(`${type}JiraLinkID`)) newErrors[type].push(`${type}JiraLinkID`);
-    } else if (value === 'N/A') {
+    if (value === 'N/A') {
+      const newErrors = { ...errors };
       delete newErrors[type];
-    } else {
-      if (newErrors[type]) {
-        newErrors[type] = newErrors[type].filter(errField => errField !== `${type}JiraLinkID`);
-        if (newErrors[type].length === 0) delete newErrors[type];
-      }
+      setErrors(newErrors);
     }
-    setErrors(newErrors);
   };
 
   const handleInputChange = (e, type, field) => {
     const value = e.target.value;
     setFormData({ ...formData, [type]: { ...formData[type], [field]: value } });
+
     if (type === 'general' && field === 'reporterID') {
+      const reporter = { value, label: value };
       setFormData(prevFormData => ({
         ...prevFormData,
         clncont: {
@@ -161,13 +169,33 @@ const FormComponent = () => {
         jforms: {
           ...prevFormData.jforms,
           jformsAssignee: value,
-          diApprove: `${value},`.trim(),
-          doApprove: `${value},`.trim(),
+          diApprovers: prevFormData.jforms.diApprovers.concat(reporter),
+          doApprovers: prevFormData.jforms.doApprovers.concat(reporter),
+        },
+        package: {
+          ...prevFormData.package,
+          packageStakeholders: prevFormData.package.packageStakeholders.concat(reporter),
         },
       }));
     }
+
     const newErrors = { ...errors };
     if (requiredFields[type]?.includes(field) && value.trim() === '') {
+      if (!newErrors[type]) newErrors[type] = [];
+      if (!newErrors[type].includes(field)) newErrors[type].push(field);
+    } else {
+      if (newErrors[type]) {
+        newErrors[type] = newErrors[type].filter(errField => errField !== field);
+        if (newErrors[type].length === 0) delete newErrors[type];
+      }
+    }
+    setErrors(newErrors);
+  };
+
+  const handleSelectChange = (selectedOption, type, field) => {
+    setFormData({ ...formData, [type]: { ...formData[type], [field]: selectedOption } });
+    const newErrors = { ...errors };
+    if (requiredFields[type]?.includes(field) && (!selectedOption || selectedOption.length === 0)) {
       if (!newErrors[type]) newErrors[type] = [];
       if (!newErrors[type].includes(field)) newErrors[type].push(field);
     } else {
@@ -202,17 +230,13 @@ const FormComponent = () => {
     const newErrors = {};
 
     Object.keys(tabStatus).forEach(type => {
-      if (tabStatus[type] === 'New' || tabStatus[type] === 'Link') {
+      if (tabStatus[type] === 'New') {
         requiredFields[type]?.forEach(field => {
-          if (formData[type][field].trim() === '') {
+          if (formData[type][field]?.length === 0 || formData[type][field]?.trim?.() === '') {
             if (!newErrors[type]) newErrors[type] = [];
             newErrors[type].push(field);
           }
         });
-        if (tabStatus[type] === 'Link' && formData[type][`${type}JiraLinkID`].trim() === '') {
-          if (!newErrors[type]) newErrors[type] = [];
-          newErrors[type].push(`${type}JiraLinkID`);
-        }
       }
     });
 
@@ -313,6 +337,24 @@ const FormComponent = () => {
     </Form.Group>
   );
 
+  const renderReactSelectField = (type, field, label, options, required = false) => (
+    <Form.Group as={Row} controlId={`${type}_${field}`} className="form-group mb-3">
+      <Form.Label column sm="3">{label} {required && '*'}</Form.Label>
+      <Col sm="9">
+        <Select
+          isMulti
+          name={field}
+          value={formData[type][field]}
+          options={options}
+          onChange={(selectedOption) => handleSelectChange(selectedOption, type, field)}
+          className={`basic-multi-select ${errors[type]?.includes(field) ? 'is-invalid' : ''}`}
+          classNamePrefix="select"
+        />
+        {errors[type]?.includes(field) && <div className="invalid-feedback">This field is required</div>}
+      </Col>
+    </Form.Group>
+  );
+
   const renderRadioButtonGroup = (type, field, label) => (
     <Form.Group as={Row} controlId={`${type}_${field}`} className="form-group mb-3">
       <Form.Label column sm="3">{label}</Form.Label>
@@ -366,9 +408,7 @@ const FormComponent = () => {
             {renderSelectField('clincont', 'clincontJiraGroup', 'Jira Group', ['Group 1', 'Group 2'], true)}
             {renderRadioButtonGroup('clincont', 'scIndicator', 'SC Indicator')}
             {renderTextareaField('clincont', 'clientViewableDescription', 'Client Viewable Description')}
-            {renderTextareaField('clincont', 'projectIdentifiers', 'Project Identifiers')}
             {renderInputField('clincont', 'clincontAssignee', 'Assignee')}
-            {renderInputField('clincont', 'clincontJiraLinkID', 'Jira Link ID')}
             {renderRadioButtonGroup('clincont', 'clientViewable', 'Client Viewable')}
           </>
         );
@@ -399,13 +439,14 @@ const FormComponent = () => {
             {renderSelectField('jforms', 'jformsSolutionDetail', 'Solution Detail', ['Detail 1', 'Detail 2'], true)}
             {renderSelectField('jforms', 'jformsJiraGroup', 'Jira Group', ['Group 1', 'Group 2'], true)}
             {renderInputField('jforms', 'jformsAssignee', 'Assignee')}
-            {renderInputField('jforms', 'jformsProjectIdentifiers', 'Project Identifiers')}
-            {renderTextareaField('jforms', 'diApprove', 'DI Approve')}
-            {renderTextareaField('jforms', 'doApprove', 'DO Approve')}
+            {renderReactSelectField('jforms', 'jformsProjectIdentifiers', 'Project Identifiers', jiraItems, true)}
+            {renderReactSelectField('jforms', 'diApprovers', 'DI Approvers', assignees, true)}
+            {renderReactSelectField('jforms', 'doApprovers', 'DO Approvers', assignees, true)}
             {renderRadioButtonGroup('jforms', 'addChanges', 'Add Changes')}
             {renderRadioButtonGroup('jforms', 'includeHaz', 'Include Haz')}
             {renderTextareaField('jforms', 'specifications', 'Specifications')}
-            {renderTextareaField('jforms', 'projTraceability', 'Project Traceability')}
+            {renderReactSelectField('jforms', 'projTraceability', 'Project Traceability', jiraItems, true)}
+
             {renderTextareaField('jforms', 'techDesignDoc', 'Technical Design Doc')}
             {renderTextareaField('jforms', 'sourceCode', 'Source Code')}
           </>
@@ -426,7 +467,6 @@ const FormComponent = () => {
             {renderInputField('ohaiuad', 'ohaiuadChangeNum', 'Change Number', true)}
             {renderInputField('ohaiuad', 'fileToAdd', 'File to Add')}
             {renderInputField('ohaiuad', 'fileToAdd2', 'File to Add 2')}
-            {renderSelectField('ohaiuad', 'ohaiuadIssueType', 'Issue Type', ['Documentation Enhancement', 'OtherIssueType'], true)}
           </>
         );
       case 'package':
@@ -439,7 +479,6 @@ const FormComponent = () => {
             {renderInputField('package', 'packageJiraGroup', 'Jira Group')}
             {renderInputField('package', 'packageAssignee', 'Assignee')}
             {renderInputField('package', 'packageOldPack', 'Old Pack')}
-            {renderSelectField('package', 'packageIssueType', 'Issue Type', ['Content Package Request', 'OtherIssueType'])}
             {renderInputField('package', 'packageName', 'Package Name', true)}
             {renderInputField('package', 'packageOwner', 'Package Owner', true)}
             {renderInputField('package', 'packageOwnerID', 'Package Owner ID', true)}
@@ -449,8 +488,8 @@ const FormComponent = () => {
             {renderDateField('package', 'packageReviewDate', 'Review Date', true)}
             {renderInputField('package', 'packageCR', 'CR', true)}
             {renderInputField('package', 'packageFeature', 'Feature', true)}
-            {renderTextareaField('package', 'packageStakeholders', 'Stakeholders')}
             {renderRadioButtonGroup('package', 'packageNeedsChanges', 'Needs Changes')}
+            {renderReactSelectField('package', 'packageStakeholders', 'Stakeholders', assignees, true)}
           </>
         );
       default:
